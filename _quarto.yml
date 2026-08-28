@@ -1,0 +1,23 @@
+project:
+  type: website
+
+website:
+  title: "ISSS626-GAA"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - text: "Hands-on Exercise"
+        menu:
+          - text: "Ex 1a: Geospatial Data Science with R"
+            href: hand-on-ex/hand-on-ex1/hand-on-ex1.qmd
+          - text: "Ex 1b: Thematic Mapping and GeoVisualisation"
+            href: hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd
+      - href: about.qmd
+        text: About
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true

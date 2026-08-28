@@ -1,0 +1,9 @@
+---
+title: "About"
+---
+
+## Ji Guofang
+
+This is the course portfolio for **ISSS626 Geospatial Analytics and Applications**, School of Computing and Information Systems, Singapore Management University.
+
+The site is built with [Quarto](https://quarto.org/) and hosted on Netlify.

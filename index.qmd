@@ -1,0 +1,17 @@
+---
+title: "ISSS626 Geospatial Analytics and Applications"
+author: "Ji Guofang"
+---
+
+Welcome to my course portfolio for **ISSS626 Geospatial Analytics and Applications**.
+
+This site documents my hands-on exercises, in-class exercises, and take-home assignments completed throughout the course.
+
+---
+
+## Hands-on Exercises
+
+| Exercise | Topic |
+|----------|-------|
+| [Hands-on Ex 1a](hand-on-ex/hand-on-ex1/hand-on-ex1.qmd) | Geospatial Data Science with R |
+| [Hands-on Ex 1b](hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd) | Thematic Mapping and GeoVisualisation with R |
