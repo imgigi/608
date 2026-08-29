@@ -13,6 +13,10 @@ website:
             href: hand-on-ex/hand-on-ex1/hand-on-ex1.qmd
           - text: "Ex 1b: Thematic Mapping and GeoVisualisation"
             href: hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd
+      - text: "In-class Exercise"
+        menu:
+          - text: "Ex 1: Geospatial Data Science with R"
+            href: in-class-ex/in-class-ex1/in-class-ex1.qmd
       - href: about.qmd
         text: About
 

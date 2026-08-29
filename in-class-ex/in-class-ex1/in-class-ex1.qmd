@@ -1,0 +1,365 @@
+---
+title: "In-class Exercise 1: Geospatial Data Science with R"
+author: "Ji Guofang"
+date: "last-modified"
+date-modified: "last-modified"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    toc-expand: true
+execute:
+  echo: true
+  eval: true
+  warning: false
+  freeze: true
+editor: visual
+---
+
+## Overview
+
+Lesson 1 covers geospatial data models, coordinate systems, and thematic mapping with **tmap**. The import, projection, and basic choropleth workflow were already practised in [Hands-on Exercise 1a](../../hand-on-ex/hand-on-ex1/hand-on-ex1.qmd) and [1b](../../hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd), so this in-class exercise focuses only on what is new:
+
+- deriving a **point-in-polygon count** and a **density** measure from two layers,
+- confirming a spatial relationship statistically with **ggstatsplot** rather than by eye,
+- building two **analytical maps** — a percentile map and a box map — whose class breaks are computed from the data distribution instead of chosen by a built-in `style`.
+
+```{r}
+pacman::p_load(tidyverse, sf, tmap, ggstatsplot)
+```
+
+**ggstatsplot** is the only package not used in the hands-on exercises. It extends **ggplot2** plots with the results of the corresponding statistical test, so the chart and its confirmatory analysis are produced in a single call.
+
+## The Data
+
+| Dataset | Source | Use here |
+|---|---|---|
+| Master Plan 2019 Subzone Boundary (No Sea), GeoJSON | [data.gov.sg](https://data.gov.sg/) | Polygon layer for counting and mapping |
+| Pre-Schools Location, GeoJSON | [data.gov.sg](https://data.gov.sg/) | Point layer to be counted per subzone |
+| Singapore Residents by Planning Area / Subzone, Age Group, Sex and Type of Dwelling, June 2024 | [singstat.gov.sg](https://www.singstat.gov.sg/) | Aspatial data for the dependency ratio |
+
+Both spatial layers arrive in **wgs84** (EPSG: 4326), so `st_transform()` is chained onto the import to reproject them to **svy21** (EPSG: 3414). Doing this at import time means no un-projected object is ever left in the environment to be used by mistake in an area or distance calculation:
+
+```{r}
+mpsz19 <- st_read("data/geospatial/MasterPlan2019SubzoneBoundaryNoSea.geojson") %>%
+  st_transform(crs = 3414)
+
+preschool <- st_read("data/geospatial/PreSchoolsLocation.geojson") %>%
+  st_transform(crs = 3414)
+```
+
+## Geospatial Data Wrangling
+
+### Point-in-polygon count
+
+`st_intersects()` returns, for each of the 332 planning subzones, the indices of the pre-schools falling inside it. `lengths()` collapses that list of index vectors into a single count per subzone:
+
+```{r}
+mpsz19 <- mpsz19 %>%
+  mutate(`PreSch Count` = lengths(
+    st_intersects(mpsz19, preschool)))
+```
+
+### Computing density
+
+A raw count is not comparable across subzones of different size, so it is normalised by area. `st_area()` supplies the area, `units::drop_units()` strips the `m^2` label so the result is a plain numeric, and multiplying by 1,000,000 converts the density to pre-schools per square kilometre:
+
+```{r}
+mpsz19 <- mpsz19 %>%
+  mutate(Area = units::drop_units(
+    st_area(.)),
+    `PreSch Density` = `PreSch Count` / Area * 1000000)
+```
+
+::: callout-note
+Dropping the unit early matters. If left in place, the `units` label propagates through the arithmetic and **ggstatsplot** — which expects plain numeric vectors — fails on the column in the next section.
+:::
+
+```{r}
+mpsz19 %>%
+  st_drop_geometry() %>%
+  slice_max(`PreSch Count`, n = 5) %>%
+  select(SUBZONE_N, PLN_AREA_N, `PreSch Count`, `PreSch Density`)
+```
+
+## Statistical Analysis
+
+The hands-on exercise plotted count against density with `geom_point()` and described the pattern by eye. Here the same relationship is examined with EDA and Confirmatory Data Analysis (CDA) together.
+
+Geometry is dropped first, because `ggscatterstats()` expects an ordinary data frame:
+
+```{r}
+mpsz19_df <- mpsz19 %>%
+  st_drop_geometry() %>%
+  mutate(`PreSch Density` = as.numeric(`PreSch Density`),
+         `PreSch Count` = as.numeric(`PreSch Count`))
+```
+
+`ggscatterstats()` draws the scatterplot, the marginal distributions, the fitted line, and the result of a parametric correlation test in one call:
+
+```{r}
+#| fig-width: 9
+#| fig-height: 7
+
+ggscatterstats(data = mpsz19_df,
+               x = `PreSch Density`,
+               y = `PreSch Count`,
+               type = "parametric",
+               label.var = SUBZONE_N,
+               label.expression = `PreSch Count` > 40)
+```
+
+::: callout-note
+## Interpretation
+
+The subtitle reports the Pearson correlation together with its confidence interval, *p*-value, and sample size, which turns the visual impression into a testable claim: *r* = 0.64, 95% CI [0.57, 0.70], *p* < 0.001, *n* = 332.
+
+So the relationship is positive and clearly significant, but only moderate — density explains roughly 40% of the variance in count. That gap is the substantive finding, not noise: a large outlying subzone can hold many pre-schools while remaining sparse, and a small dense residential subzone can reach a high density on only a handful. Count and density are therefore *not* interchangeable, and the choice between them changes what a choropleth map of pre-school provision would show. The labelled points are the subzones with more than 40 pre-schools.
+:::
+
+## Preparing the Dependency Ratio
+
+The analytical maps below need a continuous variable with a skewed distribution. The dependency ratio prepared in Hands-on Exercise 1b is reused, so the wrangling is repeated here only in condensed form:
+
+```{r}
+popdata2024 <- read_csv("data/aspatial/respopagesextod2024.csv") %>%
+  group_by(PA, SZ, AG) %>%
+  summarise(`POP` = sum(`Pop`), .groups = "drop") %>%
+  pivot_wider(names_from = AG, values_from = POP) %>%
+  mutate(YOUNG = rowSums(select(., `0_to_4`, `5_to_9`, `10_to_14`,
+                                   `15_to_19`, `20_to_24`), na.rm = TRUE),
+         `ECONOMY ACTIVE` = rowSums(select(., `25_to_29`, `30_to_34`,
+                                              `35_to_39`, `40_to_44`,
+                                              `45_to_49`, `50_to_54`,
+                                              `55_to_59`, `60_to_64`), na.rm = TRUE),
+         `AGED` = rowSums(select(., `65_to_69`, `70_to_74`, `75_to_79`,
+                                    `80_to_84`, `85_to_89`, `90_and_over`), na.rm = TRUE),
+         `TOTAL` = rowSums(select(., `0_to_4`:`90_and_over`), na.rm = TRUE),
+         `DEPENDENCY` = (`YOUNG` + `AGED`) / `ECONOMY ACTIVE`) %>%
+  select(`PA`, `SZ`, `YOUNG`, `ECONOMY ACTIVE`, `AGED`, `TOTAL`, `DEPENDENCY`) %>%
+  mutate_at(.vars = vars(PA, SZ), .funs = list(toupper)) %>%
+  filter(`ECONOMY ACTIVE` > 0)
+```
+
+::: callout-warning
+`pivot_wider()` orders the new columns alphabetically, placing `5_to_9` after `55_to_59`. Selecting age groups by position (`rowSums(.[3:6])`) therefore assigns the wrong bands to YOUNG and ECONOMY ACTIVE. The columns are referenced by name above so the derivation is independent of column order.
+:::
+
+Joining with the geospatial layer as the **left** table keeps the geometry column, so the result remains an `sf` object. Rows with missing values are dropped, because the break points below are computed with `quantile()`, which cannot work over `NA`:
+
+```{r}
+mpsz_pop2024 <- left_join(mpsz19, popdata2024,
+                          by = c("SUBZONE_N" = "SZ")) %>%
+  drop_na()
+
+write_rds(mpsz_pop2024, "data/rds/mpsz_pop2024.rds")
+```
+
+## Analytical Map: Percentile Map
+
+The classification methods available through `style` in `tm_scale_intervals()` all place the breaks for you. An analytical map instead computes its own breaks, so that the classes carry a specific statistical meaning.
+
+A percentile map is a quantile map with six fixed categories — 0–1%, 1–10%, 10–50%, 50–90%, 90–99%, 99–100% — obtained by passing an explicit vector of cumulative probabilities to `quantile()`. Both endpoints must be included.
+
+### The `get.var()` function
+
+Extracts a variable from an `sf` data frame as a plain, unnamed vector.
+
+- **arguments** — `vname`: variable name as a quoted character; `df`: an `sf` data frame
+- **returns** — a vector of values with no column name
+
+```{r}
+get.var <- function(vname, df) {
+  v <- df[vname] %>%
+    st_set_geometry(NULL)
+  v <- unname(v[, 1])
+  return(v)
+}
+```
+
+### The `percentmap()` function
+
+```{r}
+percentmap <- function(vnam, df, legtitle = NA, mtitle = "Percentile Map") {
+
+  # cumulative probabilities defining the six percentile classes
+  percent <- c(0, .01, .1, .5, .9, .99, 1)
+
+  # extract the variable and derive its percentile break points
+  var <- get.var(vnam, df)
+  bperc <- quantile(var, percent)
+
+  if (is.na(legtitle)) legtitle <- vnam
+
+  tm_shape(df) +
+    tm_fill(vnam,
+            fill.scale = tm_scale_intervals(
+              breaks = bperc,
+              values = "brewer.blues",
+              labels = c("< 1%", "1% - 10%", "10% - 50%",
+                         "50% - 90%", "90% - 99%", "> 99%")),
+            fill.legend = tm_legend(title = legtitle)) +
+    tm_borders() +
+    tm_title(mtitle)
+}
+```
+
+::: callout-note
+## tmap v4 syntax
+
+Lesson 1 and the earlier cohorts' exercises use tmap v3, where breaks, palette, and labels are passed straight to `tm_fill()`. In **tmap 4.x** they belong to a scale specification handed to `fill.scale`, the legend title moves into `tm_legend()` via `fill.legend`, and the map title becomes a standalone `tm_title()` element instead of `tm_layout(main.title =)`.
+
+```{r}
+packageVersion("tmap")
+```
+:::
+
+```{r}
+#| fig-width: 9
+
+percentmap("DEPENDENCY", mpsz_pop2024,
+           legtitle = "Dependency ratio",
+           mtitle = "Percentile Map of Dependency Ratio")
+```
+
+The percentile map isolates the extremes a standard quantile map hides: the outer classes hold only the top and bottom 1% of subzones, so genuinely unusual values stand out instead of being absorbed into a broad top class.
+
+## Analytical Map: Box Map
+
+A box map is an augmented quartile map with two extra classes for outliers, using the fences of a boxplot as break points. Which value opens the sequence depends on whether outliers exist:
+
+- **no lower outliers** — the first break is the lower fence and the second is the minimum, so the first class is necessarily empty;
+- **lower outliers present** — the first break is the minimum and the second is the lower fence.
+
+The upper end follows the same logic in reverse.
+
+### The `boxbreaks()` function
+
+- **arguments** — `v`: vector of observations; `mult`: multiplier for the IQR, default 1.5
+- **returns** — a vector of seven break points
+
+```{r}
+boxbreaks <- function(v, mult = 1.5) {
+
+  qv <- unname(quantile(v))
+
+  iqr <- qv[4] - qv[2]
+  upfence <- qv[4] + mult * iqr
+  lofence <- qv[2] - mult * iqr
+
+  # seven break points define the six box map classes
+  bb <- vector(mode = "numeric", length = 7)
+
+  if (lofence < qv[1]) {   # no lower outliers
+    bb[1] <- lofence
+    bb[2] <- floor(qv[1])
+  } else {                 # lower outliers present
+    bb[1] <- qv[1]
+    bb[2] <- lofence
+  }
+
+  if (upfence > qv[5]) {   # no upper outliers
+    bb[7] <- upfence
+    bb[6] <- ceiling(qv[5])
+  } else {                 # upper outliers present
+    bb[6] <- upfence
+    bb[7] <- qv[5]
+  }
+
+  # Q1, median and Q3 form the three interior breaks
+  bb[3:5] <- qv[2:4]
+
+  return(bb)
+}
+```
+
+The breaks produced for the dependency ratio:
+
+```{r}
+boxbreaks(get.var("DEPENDENCY", mpsz_pop2024))
+```
+
+### The `boxmap()` function
+
+- **arguments** — `vnam`: variable name as a quoted character; `df`: an `sf` polygon layer; `legtitle`: legend title; `mtitle`: map title; `mult`: IQR multiplier
+- **returns** — a tmap element that plots the map
+
+```{r}
+boxmap <- function(vnam, df,
+                   legtitle = NA,
+                   mtitle = "Box Map",
+                   mult = 1.5) {
+
+  var <- get.var(vnam, df)
+  bb <- boxbreaks(var, mult)
+
+  if (is.na(legtitle)) legtitle <- vnam
+
+  tm_shape(df) +
+    tm_fill(vnam,
+            fill.scale = tm_scale_intervals(
+              breaks = bb,
+              values = "brewer.blues",
+              labels = c("Lower outlier",
+                         "< 25%",
+                         "25% - 50%",
+                         "50% - 75%",
+                         "> 75%",
+                         "Upper outlier")),
+            fill.legend = tm_legend(title = legtitle)) +
+    tm_borders() +
+    tm_title(mtitle)
+}
+```
+
+### Static box map
+
+```{r}
+#| fig-width: 9
+
+boxmap("DEPENDENCY", mpsz_pop2024,
+       legtitle = "Dependency ratio",
+       mtitle = "Box Map of Dependency Ratio")
+```
+
+::: callout-note
+## Interpretation
+
+The two outlier classes are what distinguish a box map from an ordinary quartile map, and both are populated here — 17 subzones fall below the lower fence of 0.467 and 3 above the upper fence of 1.022.
+
+The lower outliers are almost entirely city-centre subzones — Clarke Quay, City Hall, Boat Quay, Tanjong Pagar, Cecil — where the resident population is small and overwhelmingly working-age. The upper outliers are the opposite case, and Loyang West is the extreme: 500 aged residents against only 50 economy active, giving a dependency ratio of 10 against a median of 0.73.
+
+That single value is worth pausing on. It stretches the top class from 1.02 all the way to 10, which is exactly why the box map is the right tool here: an ordinary quartile map would have buried it in a "> 75%" class alongside subzones with a ratio of 0.9, whereas the box map flags it as statistically exceptional and prompts the follow-up question.
+:::
+
+::: callout-warning
+## Small denominators
+
+SingStat rounds subzone populations to the nearest 10, so a ratio computed over a denominator of 50 residents is highly unstable — one rounding step moves it substantially. The most extreme values at both ends of this map sit in subzones with fewer than a few hundred residents, so they are better read as a signal to check the underlying counts than as a reliable measure of demographic structure.
+:::
+
+### Interactive box map
+
+`tmap_mode("view")` switches to interactive rendering, and `tm_basemap()` places a reference tile layer underneath so the outlier subzones can be located on the ground. (The v3 guard `tmap_options(check.and.fix = TRUE)` is not needed — that option no longer exists in tmap 4.x, which validates geometries on its own.)
+
+```{r}
+tmap_mode("view")
+
+tm_basemap("Esri.WorldGrayCanvas") +
+boxmap("DEPENDENCY", mpsz_pop2024,
+       legtitle = "Dependency ratio")
+```
+
+```{r}
+tmap_mode("plot")
+```
+
+`tmap_mode()` is a global setting, so it is reset to `"plot"` immediately afterwards to keep later chunks static.
+
+## Reference
+
+- Kam, T. S. *ISSS626 Geospatial Analytics and Applications*, Lesson 1 — Introduction to GAA, Geospatial Data Models, GeoVisualisation, and tmap methods.
+- [sf: Simple Features for R](https://r-spatial.github.io/sf/)
+- [tmap: Thematic Maps in R](https://r-tmap.github.io/tmap/)
+- [tmap v3 to v4 migration notes](https://r-tmap.github.io/tmap/articles/versus)
+- [ggstatsplot](https://indrajeetpatil.github.io/ggstatsplot/)

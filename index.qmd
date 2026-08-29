@@ -15,3 +15,9 @@ This site documents my hands-on exercises, in-class exercises, and take-home ass
 |----------|-------|
 | [Hands-on Ex 1a](hand-on-ex/hand-on-ex1/hand-on-ex1.qmd) | Geospatial Data Science with R |
 | [Hands-on Ex 1b](hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd) | Thematic Mapping and GeoVisualisation with R |
+
+## In-class Exercises
+
+| Exercise | Topic |
+|----------|-------|
+| [In-class Ex 1](in-class-ex/in-class-ex1/in-class-ex1.qmd) | Geospatial Data Science with R — point-in-polygon analysis, statistical confirmation with **ggstatsplot**, percentile and box maps |
