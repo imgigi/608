@@ -155,6 +155,18 @@ mpsz_pop2024 <- left_join(mpsz19, popdata2024,
 write_rds(mpsz_pop2024, "data/rds/mpsz_pop2024.rds")
 ```
 
+```{r}
+nrow(mpsz_pop2024)
+```
+
+::: callout-warning
+## 94 subzones are dropped
+
+`drop_na()` removes 94 of the 332 subzones, leaving 238. Checking column by column confirms these are exactly the rows where the population join found no match — no other column contributes an `NA`, so nothing is being discarded accidentally. They are the subzones with no resident population: the central water catchment, Tengah forest, the airport, the western industrial estates, and the offshore islands.
+
+Two consequences follow, and both matter when reading the maps below. The white areas are not missing data in the usual sense but genuinely unpopulated land, so a dependency ratio is undefined there rather than merely unknown. And the sample size changes between sections: the correlation above was computed over all 332 subzones, while the analytical maps are built from 238.
+:::
+
 ## Analytical Map: Percentile Map
 
 The classification methods available through `style` in `tm_scale_intervals()` all place the breaks for you. An analytical map instead computes its own breaks, so that the classes carry a specific statistical meaning.
@@ -222,7 +234,7 @@ percentmap("DEPENDENCY", mpsz_pop2024,
            mtitle = "Percentile Map of Dependency Ratio")
 ```
 
-The percentile map isolates the extremes a standard quantile map hides: the outer classes hold only the top and bottom 1% of subzones, so genuinely unusual values stand out instead of being absorbed into a broad top class.
+The percentile map isolates the extremes a standard quantile map hides: the outer classes hold only the top and bottom 1% of subzones — three each, out of 238 — so genuinely unusual values stand out instead of being absorbed into a broad top class.
 
 ## Analytical Map: Box Map
 
@@ -325,7 +337,7 @@ boxmap("DEPENDENCY", mpsz_pop2024,
 ::: callout-note
 ## Interpretation
 
-The two outlier classes are what distinguish a box map from an ordinary quartile map, and both are populated here — 17 subzones fall below the lower fence of 0.467 and 3 above the upper fence of 1.022.
+The two outlier classes are what distinguish a box map from an ordinary quartile map, and both are populated here — of the 238 mapped subzones, 17 fall below the lower fence of 0.467 and 3 sit above the upper fence of 1.022.
 
 The lower outliers are almost entirely city-centre subzones — Clarke Quay, City Hall, Boat Quay, Tanjong Pagar, Cecil — where the resident population is small and overwhelmingly working-age. The upper outliers are the opposite case, and Loyang West is the extreme: 500 aged residents against only 50 economy active, giving a dependency ratio of 10 against a median of 0.73.
 
