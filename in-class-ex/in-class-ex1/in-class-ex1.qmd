@@ -18,17 +18,19 @@ editor: visual
 
 ## Overview
 
-Lesson 1 covers geospatial data models, coordinate systems, and thematic mapping with **tmap**. The import, projection, and basic choropleth workflow were already practised in [Hands-on Exercise 1a](../../hand-on-ex/hand-on-ex1/hand-on-ex1.qmd) and [1b](../../hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd), so this in-class exercise focuses only on what is new:
+Lesson 1 covers geospatial data models, coordinate systems, and thematic mapping with **tmap**. Importing, projecting, point-in-polygon counting, area normalisation, the age-group wrangling, and the standard choropleth workflow were all covered in [Hands-on Exercise 1a](../../hand-on-ex/hand-on-ex1/hand-on-ex1.qmd) and [1b](../../hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd), and are not taught again here.
 
-- deriving a **point-in-polygon count** and a **density** measure from two layers,
-- confirming a spatial relationship statistically with **ggstatsplot** rather than by eye,
-- building two **analytical maps** — a percentile map and a box map — whose class breaks are computed from the data distribution instead of chosen by a built-in `style`.
+This in-class exercise extends those methods to the parts the hands-on exercises do not reach:
+
+- confirming a spatial relationship statistically with **ggstatsplot** rather than describing it by eye,
+- building two **analytical maps** — a percentile map and a box map — whose class breaks are computed from the data distribution instead of chosen by a built-in `style`,
+- putting the same phenomenon into the **raster** data model with **terra**, the counterpart to the vector model used throughout Lesson 1.
 
 ```{r}
 pacman::p_load(tidyverse, sf, terra, tmap, ggstatsplot)
 ```
 
-Two packages here were not used in the hands-on exercises. **ggstatsplot** extends **ggplot2** plots with the results of the corresponding statistical test, so the chart and its confirmatory analysis are produced in a single call. **terra** is the current package for raster data in R, replacing the retired **raster** package.
+Two packages are new relative to the hands-on exercises. **ggstatsplot** extends **ggplot2** plots with the results of the corresponding statistical test, so a chart and its confirmatory analysis are produced in a single call. **terra** is the current package for raster data in R, replacing the retired **raster** package.
 
 ## The Data
 
@@ -38,123 +40,63 @@ Two packages here were not used in the hands-on exercises. **ggstatsplot** exten
 | Pre-Schools Location, GeoJSON | [data.gov.sg](https://data.gov.sg/) | Point layer to be counted per subzone |
 | Singapore Residents by Planning Area / Subzone, Age Group, Sex and Type of Dwelling, June 2024 | [singstat.gov.sg](https://www.singstat.gov.sg/) | Aspatial data for the dependency ratio |
 
-Both spatial layers arrive in **wgs84** (EPSG: 4326), so `st_transform()` is chained onto the import to reproject them to **svy21** (EPSG: 3414). Doing this at import time means no un-projected object is ever left in the environment to be used by mistake in an area or distance calculation:
+## Inputs Carried Over from Hands-on Exercise 1
+
+The two derived variables used below — pre-school density per subzone, and the dependency ratio — were both produced in Hands-on Exercise 1. The code is repeated here only so that this document runs on its own. The methods behind it are explained where they were first used: point-in-polygon counting and area normalisation in [1a](../../hand-on-ex/hand-on-ex1/hand-on-ex1.qmd), the age-group wrangling and the join in [1b](../../hand-on-ex/hand-on-ex1/hand-on-ex1b.qmd).
 
 ```{r}
-mpsz19 <- st_read("data/geospatial/MasterPlan2019SubzoneBoundaryNoSea.geojson") %>%
+mpsz19 <- st_read("data/geospatial/MasterPlan2019SubzoneBoundaryNoSea.geojson",
+                  quiet = TRUE) %>%
   st_transform(crs = 3414)
 
-preschool <- st_read("data/geospatial/PreSchoolsLocation.geojson") %>%
+preschool <- st_read("data/geospatial/PreSchoolsLocation.geojson",
+                     quiet = TRUE) %>%
   st_transform(crs = 3414)
-```
 
-## Geospatial Data Wrangling
-
-### Point-in-polygon count
-
-`st_intersects()` returns, for each of the 332 planning subzones, the indices of the pre-schools falling inside it. `lengths()` collapses that list of index vectors into a single count per subzone:
-
-```{r}
 mpsz19 <- mpsz19 %>%
-  mutate(`PreSch Count` = lengths(
-    st_intersects(mpsz19, preschool)))
+  mutate(`PreSch Count` = lengths(st_intersects(mpsz19, preschool)),
+         Area = units::drop_units(st_area(.)),
+         `PreSch Density` = `PreSch Count` / Area * 1000000)
 ```
-
-### Computing density
-
-A raw count is not comparable across subzones of different size, so it is normalised by area. `st_area()` supplies the area, `units::drop_units()` strips the `m^2` label so the result is a plain numeric, and multiplying by 1,000,000 converts the density to pre-schools per square kilometre:
 
 ```{r}
-mpsz19 <- mpsz19 %>%
-  mutate(Area = units::drop_units(
-    st_area(.)),
-    `PreSch Density` = `PreSch Count` / Area * 1000000)
+popdata2024 <- read_csv("data/aspatial/respopagesextod2024.csv") %>%
+  group_by(PA, SZ, AG) %>%
+  summarise(`POP` = sum(`Pop`), .groups = "drop") %>%
+  pivot_wider(names_from = AG, values_from = POP) %>%
+  mutate(YOUNG = rowSums(select(., `0_to_4`, `5_to_9`, `10_to_14`,
+                                   `15_to_19`, `20_to_24`), na.rm = TRUE),
+         `ECONOMY ACTIVE` = rowSums(select(., `25_to_29`, `30_to_34`,
+                                              `35_to_39`, `40_to_44`,
+                                              `45_to_49`, `50_to_54`,
+                                              `55_to_59`, `60_to_64`), na.rm = TRUE),
+         `AGED` = rowSums(select(., `65_to_69`, `70_to_74`, `75_to_79`,
+                                    `80_to_84`, `85_to_89`, `90_and_over`), na.rm = TRUE),
+         `TOTAL` = rowSums(select(., `0_to_4`:`90_and_over`), na.rm = TRUE),
+         `DEPENDENCY` = (`YOUNG` + `AGED`) / `ECONOMY ACTIVE`) %>%
+  select(`PA`, `SZ`, `YOUNG`, `ECONOMY ACTIVE`, `AGED`, `TOTAL`, `DEPENDENCY`) %>%
+  mutate_at(.vars = vars(PA, SZ), .funs = list(toupper)) %>%
+  filter(`ECONOMY ACTIVE` > 0)
 ```
-
-::: callout-note
-Dropping the unit early matters. If left in place, the `units` label propagates through the arithmetic and **ggstatsplot** — which expects plain numeric vectors — fails on the column in the next section.
-:::
 
 ```{r}
-mpsz19 %>%
-  st_drop_geometry() %>%
-  slice_max(`PreSch Count`, n = 5) %>%
-  select(SUBZONE_N, PLN_AREA_N, `PreSch Count`, `PreSch Density`)
+mpsz_pop2024 <- left_join(mpsz19, popdata2024,
+                          by = c("SUBZONE_N" = "SZ")) %>%
+  drop_na()
+
+write_rds(mpsz_pop2024, "data/rds/mpsz_pop2024.rds")
 ```
-
-## The Raster Data Model with **terra**
-
-Everything so far has used the **vector** data model: pre-schools as discrete points, subzones as discrete polygons, each carrying its own attributes. Lesson 1 presents the **raster** model as the alternative — "cells organized in a matrix of rows and columns", with the observed value encoded on the cell rather than attached to an object.
-
-The lesson covers the raster model conceptually but works entirely in **sf**. This section closes that gap by putting the *same* phenomenon into both models, which is the clearest way to see what actually differs between them.
-
-### Building a raster template
-
-`vect()` converts an `sf` object into terra's own `SpatVector` class, and `rast()` builds an empty raster covering its extent. Only the geometry of the grid is defined at this point — cell size, extent, and CRS — not any values:
 
 ```{r}
-sg_grid <- rast(vect(mpsz19), resolution = 500)
-sg_grid
+nrow(mpsz_pop2024)
 ```
 
-The printed header *is* the raster data model. `size` gives the matrix shape (69 rows x 107 columns x 1 layer = 7,383 cells), `resolution` the edge length of one cell in map units — 500 m, which is meaningful only because the layer is in svy21 and not in degrees — and `extent` the bounding box the matrix covers.
+::: callout-warning
+## 94 subzones are dropped
 
-::: callout-note
-Note what the header does *not* contain: any list of features. A vector layer stores an explicit record per object, so `mpsz19` has 332 rows. A raster stores a value for every cell whether or not anything is there, so this grid has 7,383 slots regardless of how many pre-schools exist. That is the storage trade-off between the two models.
-:::
+`drop_na()` removes 94 of the 332 subzones, leaving 238. Checking column by column confirms these are exactly the rows where the population join found no match — no other column contributes an `NA`, so nothing is being discarded accidentally. They are the subzones with no resident population: the central water catchment, Tengah forest, the airport, the western industrial estates, and the offshore islands.
 
-### Rasterizing the pre-school points
-
-`rasterize()` transfers the point layer onto the grid. `fun = "length"` makes each cell hold the number of points falling in it, and `background = 0` writes a true zero into empty cells rather than `NA` — an important distinction, since "no pre-school here" is a measurement, while "outside Singapore" is not. `mask()` then sets everything beyond the coastline back to `NA`:
-
-```{r}
-presch_rast <- rasterize(vect(preschool), sg_grid,
-                         fun = "length",
-                         background = 0) %>%
-  mask(vect(mpsz19))
-
-names(presch_rast) <- "PreSch Count"
-presch_rast
-```
-
-The header now carries `min value` and `max value`: no cell holds more than 16 pre-schools.
-
-Checking that the conversion conserved the data — the cell counts must sum back to the original number of points:
-
-```{r}
-c(points = nrow(preschool),
-  raster_total = sum(values(presch_rast), na.rm = TRUE),
-  occupied_cells = sum(values(presch_rast) > 0, na.rm = TRUE))
-```
-
-All 2,290 pre-schools are accounted for, spread over 806 occupied cells out of 7,383.
-
-### Mapping the raster
-
-**tmap** draws a `SpatRaster` with `tm_raster()`, the raster counterpart of `tm_polygons()`. The subzone boundaries are laid over it as a second `tm_shape()` layer for reference:
-
-```{r}
-#| fig-width: 9
-
-tm_shape(presch_rast) +
-  tm_raster(col.scale = tm_scale_intervals(
-              style = "fixed",
-              breaks = c(0, 1, 2, 4, 8, 16),
-              labels = c("0", "1", "2 - 3", "4 - 7", "8 - 16"),
-              values = "brewer.yl_or_rd"),
-            col.legend = tm_legend(
-              title = "Pre-schools per cell")) +
-  tm_shape(mpsz19) +
-  tm_borders(col = "grey70", lwd = 0.4) +
-  tm_title("Pre-school counts on a 500 m raster grid")
-```
-
-::: callout-note
-## Interpretation
-
-The raster reveals structure the subzone choropleth cannot. Pre-schools trace the built-up corridors — the northern HDB towns, the Jurong and Tampines clusters, the belt running east from the centre — while the catchment, the western industrial land, and the offshore islands stay empty. Because every cell is the same size, colour here means the same thing everywhere on the map, which is not true of a choropleth over subzones of wildly differing area.
-
-The cost is that the grid is an arbitrary imposition. Nothing in the world is 500 m square; change the resolution and both the pattern and the maximum count change with it. This is the modifiable areal unit problem, and the raster makes the analyst responsible for it, whereas with subzones the boundaries at least come from a real administrative decision.
+Two consequences follow, and both matter when reading the maps below. The white areas are not missing data in the usual sense but genuinely unpopulated land, so a dependency ratio is undefined there rather than merely unknown. And the sample size changes between sections: the correlation in the next section is computed over all 332 subzones, while the analytical maps are built from 238.
 :::
 
 ## Statistical Analysis
@@ -190,56 +132,6 @@ ggscatterstats(data = mpsz19_df,
 The subtitle reports the Pearson correlation together with its confidence interval, *p*-value, and sample size, which turns the visual impression into a testable claim: *r* = 0.64, 95% CI \[0.57, 0.70\], *p* \< 0.001, *n* = 332.
 
 So the relationship is positive and clearly significant, but only moderate — density explains roughly 40% of the variance in count. That gap is the substantive finding, not noise: a large outlying subzone can hold many pre-schools while remaining sparse, and a small dense residential subzone can reach a high density on only a handful. Count and density are therefore *not* interchangeable, and the choice between them changes what a choropleth map of pre-school provision would show. The labelled points are the subzones with more than 40 pre-schools.
-:::
-
-## Preparing the Dependency Ratio
-
-The analytical maps below need a continuous variable with a skewed distribution. The dependency ratio prepared in Hands-on Exercise 1b is reused, so the wrangling is repeated here only in condensed form:
-
-```{r}
-popdata2024 <- read_csv("data/aspatial/respopagesextod2024.csv") %>%
-  group_by(PA, SZ, AG) %>%
-  summarise(`POP` = sum(`Pop`), .groups = "drop") %>%
-  pivot_wider(names_from = AG, values_from = POP) %>%
-  mutate(YOUNG = rowSums(select(., `0_to_4`, `5_to_9`, `10_to_14`,
-                                   `15_to_19`, `20_to_24`), na.rm = TRUE),
-         `ECONOMY ACTIVE` = rowSums(select(., `25_to_29`, `30_to_34`,
-                                              `35_to_39`, `40_to_44`,
-                                              `45_to_49`, `50_to_54`,
-                                              `55_to_59`, `60_to_64`), na.rm = TRUE),
-         `AGED` = rowSums(select(., `65_to_69`, `70_to_74`, `75_to_79`,
-                                    `80_to_84`, `85_to_89`, `90_and_over`), na.rm = TRUE),
-         `TOTAL` = rowSums(select(., `0_to_4`:`90_and_over`), na.rm = TRUE),
-         `DEPENDENCY` = (`YOUNG` + `AGED`) / `ECONOMY ACTIVE`) %>%
-  select(`PA`, `SZ`, `YOUNG`, `ECONOMY ACTIVE`, `AGED`, `TOTAL`, `DEPENDENCY`) %>%
-  mutate_at(.vars = vars(PA, SZ), .funs = list(toupper)) %>%
-  filter(`ECONOMY ACTIVE` > 0)
-```
-
-::: callout-warning
-`pivot_wider()` orders the new columns alphabetically, placing `5_to_9` after `55_to_59`. Selecting age groups by position (`rowSums(.[3:6])`) therefore assigns the wrong bands to YOUNG and ECONOMY ACTIVE. The columns are referenced by name above so the derivation is independent of column order.
-:::
-
-Joining with the geospatial layer as the **left** table keeps the geometry column, so the result remains an `sf` object. Rows with missing values are dropped, because the break points below are computed with `quantile()`, which cannot work over `NA`:
-
-```{r}
-mpsz_pop2024 <- left_join(mpsz19, popdata2024,
-                          by = c("SUBZONE_N" = "SZ")) %>%
-  drop_na()
-
-write_rds(mpsz_pop2024, "data/rds/mpsz_pop2024.rds")
-```
-
-```{r}
-nrow(mpsz_pop2024)
-```
-
-::: callout-warning
-## 94 subzones are dropped
-
-`drop_na()` removes 94 of the 332 subzones, leaving 238. Checking column by column confirms these are exactly the rows where the population join found no match — no other column contributes an `NA`, so nothing is being discarded accidentally. They are the subzones with no resident population: the central water catchment, Tengah forest, the airport, the western industrial estates, and the offshore islands.
-
-Two consequences follow, and both matter when reading the maps below. The white areas are not missing data in the usual sense but genuinely unpopulated land, so a dependency ratio is undefined there rather than merely unknown. And the sample size changes between sections: the correlation above was computed over all 332 subzones, while the analytical maps are built from 238.
 :::
 
 ## Analytical Map: Percentile Map
@@ -442,6 +334,81 @@ tmap_mode("plot")
 ```
 
 `tmap_mode()` is a global setting, so it is reset to `"plot"` immediately afterwards to keep later chunks static.
+
+## The Raster Data Model with **terra**
+
+Everything so far has used the **vector** data model: pre-schools as discrete points, subzones as discrete polygons, each carrying its own attributes. Lesson 1 presents the **raster** model as the alternative — "cells organized in a matrix of rows and columns", with the observed value encoded on the cell rather than attached to an object.
+
+The lesson covers the raster model conceptually but works entirely in **sf**. This section closes that gap by putting the *same* phenomenon into both models, which is the clearest way to see what actually differs between them.
+
+### Building a raster template
+
+`vect()` converts an `sf` object into terra's own `SpatVector` class, and `rast()` builds an empty raster covering its extent. Only the geometry of the grid is defined at this point — cell size, extent, and CRS — not any values:
+
+```{r}
+sg_grid <- rast(vect(mpsz19), resolution = 500)
+sg_grid
+```
+
+The printed header *is* the raster data model. `size` gives the matrix shape (69 rows x 107 columns x 1 layer = 7,383 cells), `resolution` the edge length of one cell in map units — 500 m, which is meaningful only because the layer is in svy21 and not in degrees — and `extent` the bounding box the matrix covers.
+
+::: callout-note
+Note what the header does *not* contain: any list of features. A vector layer stores an explicit record per object, so `mpsz19` has 332 rows. A raster stores a value for every cell whether or not anything is there, so this grid has 7,383 slots regardless of how many pre-schools exist. That is the storage trade-off between the two models.
+:::
+
+### Rasterizing the pre-school points
+
+`rasterize()` transfers the point layer onto the grid. `fun = "length"` makes each cell hold the number of points falling in it, and `background = 0` writes a true zero into empty cells rather than `NA` — an important distinction, since "no pre-school here" is a measurement, while "outside Singapore" is not. `mask()` then sets everything beyond the coastline back to `NA`:
+
+```{r}
+presch_rast <- rasterize(vect(preschool), sg_grid,
+                         fun = "length",
+                         background = 0) %>%
+  mask(vect(mpsz19))
+
+names(presch_rast) <- "PreSch Count"
+presch_rast
+```
+
+The header now carries `min value` and `max value`: no cell holds more than 16 pre-schools.
+
+Checking that the conversion conserved the data — the cell counts must sum back to the original number of points:
+
+```{r}
+c(points = nrow(preschool),
+  raster_total = sum(values(presch_rast), na.rm = TRUE),
+  occupied_cells = sum(values(presch_rast) > 0, na.rm = TRUE))
+```
+
+All 2,290 pre-schools are accounted for, spread over 806 occupied cells out of 7,383.
+
+### Mapping the raster
+
+**tmap** draws a `SpatRaster` with `tm_raster()`, the raster counterpart of `tm_polygons()`. The subzone boundaries are laid over it as a second `tm_shape()` layer for reference:
+
+```{r}
+#| fig-width: 9
+
+tm_shape(presch_rast) +
+  tm_raster(col.scale = tm_scale_intervals(
+              style = "fixed",
+              breaks = c(0, 1, 2, 4, 8, 16),
+              labels = c("0", "1", "2 - 3", "4 - 7", "8 - 16"),
+              values = "brewer.yl_or_rd"),
+            col.legend = tm_legend(
+              title = "Pre-schools per cell")) +
+  tm_shape(mpsz19) +
+  tm_borders(col = "grey70", lwd = 0.4) +
+  tm_title("Pre-school counts on a 500 m raster grid")
+```
+
+::: callout-note
+## Interpretation
+
+The raster reveals structure the subzone choropleth cannot. Pre-schools trace the built-up corridors — the northern HDB towns, the Jurong and Tampines clusters, the belt running east from the centre — while the catchment, the western industrial land, and the offshore islands stay empty. Because every cell is the same size, colour here means the same thing everywhere on the map, which is not true of a choropleth over subzones of wildly differing area.
+
+The cost is that the grid is an arbitrary imposition. Nothing in the world is 500 m square; change the resolution and both the pattern and the maximum count change with it. This is the modifiable areal unit problem, and the raster makes the analyst responsible for it, whereas with subzones the boundaries at least come from a real administrative decision.
+:::
 
 ## Reference
 
