@@ -1,0 +1,290 @@
+---
+title: "Hands-on Exercise 2b: 2nd Order Spatial Point Patterns Analysis"
+author: "Ji Guofang"
+date: "last-modified"
+date-modified: "last-modified"
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    toc-expand: true
+execute:
+  echo: true
+  eval: true
+  warning: false
+  freeze: auto
+editor: visual
+---
+
+## Overview
+
+[Hands-on Exercise 2](hand-on-ex2.qmd) used first-order methods, which describe how the *intensity* of a point process varies across space — where events are dense and where they are sparse. Kernel density estimation answers "how many events per unit area, here?"
+
+Second-order methods ask a different question: given the intensity, do events attract or repel one another, and **at what distance**? The Clark-Evans test at the end of the previous exercise condensed the whole pattern into a single number and so could not say. The four summary functions in this exercise — **G**, **F**, **K**, and **L** — are functions of distance, so they can.
+
+The null hypothesis tested throughout is **complete spatial randomness (CSR)**: the childcare centres are randomly distributed over the study area, following a homogeneous Poisson process. The significance level is 0.001.
+
+## Getting Started
+
+```{r}
+pacman::p_load(sf, spatstat, tmap, tidyverse)
+```
+
+**terra** is not needed here — no density surface is converted to a raster in this exercise.
+
+## Rebuilding the Point Patterns
+
+The cleaned subzone layer saved in the previous exercise is reused:
+
+```{r}
+mpsz_cl <- read_rds("data/rds/mpsz_cl.rds")
+```
+
+```{r}
+childcare_sf <- st_read("data/geospatial/ChildCareServices.geojson") %>%
+  st_zm(drop = TRUE, what = "ZM") %>%
+  st_transform(crs = 3414)
+```
+
+Converting to a `ppp` and jittering the duplicates, exactly as before. The summary functions below assume a simple point pattern, so removing duplicates is a precondition rather than a nicety:
+
+```{r}
+childcare_ppp <- as.ppp(childcare_sf)
+
+childcare_ppp_jit <- rjitter(childcare_ppp,
+                             retry = TRUE,
+                             nsim = 1,
+                             drop = TRUE)
+
+any(duplicated(childcare_ppp_jit))
+```
+
+### The two study areas
+
+The analysis is run on two planning areas rather than the whole country. Second-order functions assume the process is **homogeneous** — that intensity is roughly constant across the window — and that assumption is untenable for Singapore as a whole, where the centre and the outlying areas differ by an order of magnitude. Within one planning area it is defensible:
+
+```{r}
+ck <- mpsz_cl %>% filter(PLN_AREA_N == "CHOA CHU KANG")
+tm <- mpsz_cl %>% filter(PLN_AREA_N == "TAMPINES")
+
+childcare_ck_ppp <- childcare_ppp_jit[as.owin(ck)]
+childcare_tm_ppp <- childcare_ppp_jit[as.owin(tm)]
+
+c(`Choa Chu Kang` = npoints(childcare_ck_ppp),
+  Tampines        = npoints(childcare_tm_ppp))
+```
+
+```{r}
+#| fig-width: 12
+#| fig-height: 5
+
+par(mfrow = c(1, 2))
+plot(childcare_ck_ppp, main = "Choa Chu Kang")
+plot(childcare_tm_ppp, main = "Tampines")
+```
+
+::: callout-note
+## Reading a Monte Carlo envelope
+
+Each function below is accompanied by an `envelope()` plot. The procedure simulates many point patterns under CSR, computes the same function on each, and shades the region between the pointwise minimum and maximum.
+
+The interpretation is the same in every case: where the observed curve lies **inside** the grey envelope, the pattern is indistinguishable from randomness at that distance. Where it strays **outside**, CSR is rejected — and which side it exits on says whether the departure is clustering or regularity.
+
+`set.seed()` is called before every envelope so the simulations are reproducible.
+:::
+
+## G-Function: Nearest Neighbour Distances
+
+The G-function measures the distribution of distances from an event to its **nearest neighbour**. G(r) is the proportion of events whose nearest neighbour lies within distance *r*.
+
+A curve rising **faster** than expected under CSR means nearest neighbours are closer than chance allows, i.e. **clustering**. A curve rising more slowly means events keep their distance, i.e. **regularity**.
+
+### Choa Chu Kang
+
+```{r}
+#| fig-width: 8
+
+G_CK <- Gest(childcare_ck_ppp, correction = "border")
+plot(G_CK, xlim = c(0, 500))
+```
+
+Testing against CSR with 999 simulations:
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+G_CK.csr <- envelope(childcare_ck_ppp, Gest, nsim = 999)
+plot(G_CK.csr)
+```
+
+### Tampines
+
+```{r}
+#| fig-width: 8
+
+G_tm <- Gest(childcare_tm_ppp, correction = "best")
+plot(G_tm)
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+G_tm.csr <- envelope(childcare_tm_ppp, Gest, correction = "all", nsim = 999)
+plot(G_tm.csr)
+```
+
+## F-Function: Empty Space Distances
+
+The F-function is the complement of G. Instead of measuring from events, it measures from **arbitrary locations** in the window to the nearest event. F(r) is the proportion of such locations with an event within distance *r*.
+
+The two are sensitive to different things. G describes how events sit relative to each other; F describes how much empty space the pattern leaves. A clustered pattern leaves large gaps, so its F curve rises **more slowly** than under CSR — the opposite direction to its G curve. Reporting both guards against a conclusion that is an artefact of one measurement's blind spot.
+
+### Choa Chu Kang
+
+```{r}
+#| fig-width: 8
+
+F_CK <- Fest(childcare_ck_ppp)
+plot(F_CK)
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+F_CK.csr <- envelope(childcare_ck_ppp, Fest, nsim = 999)
+plot(F_CK.csr)
+```
+
+### Tampines
+
+```{r}
+#| fig-width: 8
+
+F_tm <- Fest(childcare_tm_ppp, correction = "best")
+plot(F_tm)
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+F_tm.csr <- envelope(childcare_tm_ppp, Fest, correction = "all", nsim = 999)
+plot(F_tm.csr)
+```
+
+## K-Function: All Neighbours, Not Just the Nearest
+
+G and F both look only at the nearest event, which throws away most of the pattern. Ripley's K-function counts **all** events within distance *r* of each event, averaged over events and standardised by intensity. It therefore describes the pattern across the whole range of distances at once.
+
+The plots below are drawn as `K(d) - r` rather than K(d) itself. Under CSR, K(r) = πr², and subtracting the expectation flattens that curve onto the horizontal axis, which makes departures far easier to see than a comparison of two rising curves.
+
+### Choa Chu Kang
+
+```{r}
+#| fig-width: 8
+
+K_ck <- Kest(childcare_ck_ppp, correction = "Ripley")
+plot(K_ck, . - r ~ r, ylab = "K(d)-r", xlab = "d(m)")
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+K_ck.csr <- envelope(childcare_ck_ppp, Kest,
+                     nsim = 99, rank = 1, glocal = TRUE)
+plot(K_ck.csr, . - r ~ r, xlab = "d", ylab = "K(d)-r")
+```
+
+### Tampines
+
+```{r}
+#| fig-width: 8
+
+K_tm <- Kest(childcare_tm_ppp, correction = "Ripley")
+plot(K_tm, . - r ~ r, ylab = "K(d)-r", xlab = "d(m)", xlim = c(0, 1000))
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+K_tm.csr <- envelope(childcare_tm_ppp, Kest,
+                     nsim = 99, rank = 1, glocal = TRUE)
+plot(K_tm.csr, . - r ~ r, xlab = "d", ylab = "K(d)-r", xlim = c(0, 500))
+```
+
+::: callout-note
+## Why `glocal = TRUE` and only 99 simulations
+
+`glocal = TRUE` requests a *global* envelope. A pointwise envelope is a separate test at every distance, so with hundreds of distances some will fall outside by chance alone and the apparent significance is inflated. A global envelope has the stated coverage across the whole curve simultaneously, which is what a claim about the pattern actually requires.
+
+The simulation count drops to 99 because K is far more expensive to compute than G — it counts every pair of events at every distance rather than one distance per event. With `rank = 1` and 99 simulations the envelope is the pointwise extreme of those runs, giving a test at the 0.01 level.
+:::
+
+## L-Function: K, Variance-Stabilised
+
+K(r) grows as r², so its variance grows with distance too, and the envelope fans out at larger *r* even when nothing is happening. The L-function is the square-root transformation that removes this:
+
+$$L(r) = \sqrt{\frac{K(r)}{\pi}}$$
+
+Under CSR, L(r) = r, so plotting `L(d) - r` again flattens the expectation onto the horizontal axis — but now with roughly constant variance across the whole range, which makes the envelope width comparable at every distance. This is why L is normally the function reported.
+
+### Choa Chu Kang
+
+```{r}
+#| fig-width: 8
+
+L_ck <- Lest(childcare_ck_ppp, correction = "Ripley")
+plot(L_ck, . - r ~ r, ylab = "L(d)-r", xlab = "d(m)")
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+L_ck.csr <- envelope(childcare_ck_ppp, Lest,
+                     nsim = 99, rank = 1, glocal = TRUE)
+plot(L_ck.csr, . - r ~ r, xlab = "d", ylab = "L(d)-r")
+```
+
+### Tampines
+
+```{r}
+#| fig-width: 8
+
+L_tm <- Lest(childcare_tm_ppp, correction = "Ripley")
+plot(L_tm, . - r ~ r, ylab = "L(d)-r", xlab = "d(m)", xlim = c(0, 1000))
+```
+
+```{r}
+#| fig-width: 8
+
+set.seed(1234)
+L_tm.csr <- envelope(childcare_tm_ppp, Lest,
+                     nsim = 99, rank = 1, glocal = TRUE)
+plot(L_tm.csr, . - r ~ r, xlab = "d", ylab = "L(d)-r", xlim = c(0, 500))
+```
+
+## Summary
+
+| Function | Measures from | Clustering shows as |
+|----|----|----|
+| **G** | each event to its nearest event | curve **above** the envelope |
+| **F** | arbitrary locations to the nearest event | curve **below** the envelope |
+| **K** | each event to all events within *r* | curve **above** the envelope |
+| **L** | as K, variance-stabilised | curve **above** the envelope |
+
+The direction reverses for F because it measures empty space rather than proximity: a clustered pattern leaves larger gaps, so a randomly chosen location is *further* from the nearest event than CSR predicts. Reading F in the same direction as G is the standard mistake with these functions.
+
+Note that all four are **global** statistics: they characterise the pattern as a whole and cannot say *where* any clustering sits. That question requires local methods, and none of the four should be quoted as evidence about a particular part of the map.
+
+## Reference
+
+- Kam, T. S. *R for Geospatial Data Science and Analytics*, [Chapter 5: 2nd Order Spatial Point Patterns Analysis Methods](https://r4gdsa.netlify.app/chap05.html).
+- Baddeley, A., Rubak, E. and Turner, R. (2015) *Spatial Point Patterns: Methodology and Applications with R*. Chapman and Hall/CRC.
+- O'Sullivan, D. and Unwin, D. (2010) *Geographic Information Analysis*, 2nd Edition. Chapters 5-6.
+- Yuan, Y., Qiang, Y., Bin Asad, K., and Chow, T. E. (2020). [Point Pattern Analysis](https://gistbok-ltb.ucgis.org/page/30/concept/9213). *The GIS&T Body of Knowledge*.

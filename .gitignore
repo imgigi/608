@@ -6,3 +6,7 @@
 
 **/*.quarto_ipynb
 /*.html
+
+# Quarto build byproducts left in the source tree (the real copies live in _site/)
+/hand-on-ex/**/*_files/
+/in-class-ex/**/*_files/
