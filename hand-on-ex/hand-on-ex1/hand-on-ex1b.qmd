@@ -11,7 +11,7 @@ execute:
   echo: true
   eval: true
   warning: false
-  freeze: true
+  freeze: auto
 editor: visual
 ---
 
