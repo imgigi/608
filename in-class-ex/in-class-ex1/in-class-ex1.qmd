@@ -33,7 +33,7 @@ pacman::p_load(tidyverse, sf, tmap, ggstatsplot)
 ## The Data
 
 | Dataset | Source | Use here |
-|---|---|---|
+|----|----|----|
 | Master Plan 2019 Subzone Boundary (No Sea), GeoJSON | [data.gov.sg](https://data.gov.sg/) | Polygon layer for counting and mapping |
 | Pre-Schools Location, GeoJSON | [data.gov.sg](https://data.gov.sg/) | Point layer to be counted per subzone |
 | Singapore Residents by Planning Area / Subzone, Age Group, Sex and Type of Dwelling, June 2024 | [singstat.gov.sg](https://www.singstat.gov.sg/) | Aspatial data for the dependency ratio |
@@ -112,7 +112,7 @@ ggscatterstats(data = mpsz19_df,
 ::: callout-note
 ## Interpretation
 
-The subtitle reports the Pearson correlation together with its confidence interval, *p*-value, and sample size, which turns the visual impression into a testable claim: *r* = 0.64, 95% CI [0.57, 0.70], *p* < 0.001, *n* = 332.
+The subtitle reports the Pearson correlation together with its confidence interval, *p*-value, and sample size, which turns the visual impression into a testable claim: *r* = 0.64, 95% CI \[0.57, 0.70\], *p* \< 0.001, *n* = 332.
 
 So the relationship is positive and clearly significant, but only moderate — density explains roughly 40% of the variance in count. That gap is the substantive finding, not noise: a large outlying subzone can hold many pre-schools while remaining sparse, and a small dense residential subzone can reach a high density on only a handful. Count and density are therefore *not* interchangeable, and the choice between them changes what a choropleth map of pre-school provision would show. The labelled points are the subzones with more than 40 pre-schools.
 :::
@@ -329,7 +329,7 @@ The two outlier classes are what distinguish a box map from an ordinary quartile
 
 The lower outliers are almost entirely city-centre subzones — Clarke Quay, City Hall, Boat Quay, Tanjong Pagar, Cecil — where the resident population is small and overwhelmingly working-age. The upper outliers are the opposite case, and Loyang West is the extreme: 500 aged residents against only 50 economy active, giving a dependency ratio of 10 against a median of 0.73.
 
-That single value is worth pausing on. It stretches the top class from 1.02 all the way to 10, which is exactly why the box map is the right tool here: an ordinary quartile map would have buried it in a "> 75%" class alongside subzones with a ratio of 0.9, whereas the box map flags it as statistically exceptional and prompts the follow-up question.
+That single value is worth pausing on. It stretches the top class from 1.02 all the way to 10, which is exactly why the box map is the right tool here: an ordinary quartile map would have buried it in a "\> 75%" class alongside subzones with a ratio of 0.9, whereas the box map flags it as statistically exceptional and prompts the follow-up question.
 :::
 
 ::: callout-warning
