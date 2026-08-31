@@ -349,9 +349,9 @@ Bounding box:  xmin: 103.6878 ymin: 1.247759 xmax: 103.9897 ymax: 1.462134
 Geodetic CRS:  WGS 84</code></pre>
 </div>
 </div>
-<p>Converting to a <code>ppp</code> and jittering the duplicates, exactly as before. The summary functions below assume a simple point pattern, so removing duplicates is a precondition rather than a nicety:</p>
+<p>Converting to a <code>ppp</code> and jittering the duplicates, exactly as in Hands-on Exercise 2. <code>st_geometry()</code> is used so the pattern is unmarked; passing the whole <code>sf</code> object would turn the sixteen attribute columns into marks and stop <code>duplicated()</code> from seeing coincident locations. The summary functions below assume a simple point pattern, so removing the 187 duplicates is a precondition rather than a nicety:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>childcare_ppp <span class="ot">&lt;-</span> <span class="fu">as.ppp</span>(childcare_sf)</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>childcare_ppp <span class="ot">&lt;-</span> <span class="fu">as.ppp</span>(<span class="fu">st_geometry</span>(childcare_sf))</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1234</span>)</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>childcare_ppp_jit <span class="ot">&lt;-</span> <span class="fu">rjitter</span>(childcare_ppp,</span>

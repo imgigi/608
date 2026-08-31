@@ -129,9 +129,20 @@ spatstat does not work with `sf` objects. A point pattern must be a `ppp` object
 ### Converting sf data frames to ppp class
 
 ```{r}
-childcare_ppp <- as.ppp(childcare_sf)
+childcare_ppp <- as.ppp(st_geometry(childcare_sf))
 childcare_ppp
 ```
+
+::: callout-warning
+## Pass the geometry, not the whole sf object
+
+`as.ppp(childcare_sf)` also works, but it converts all sixteen attribute columns into **marks** and returns a *marked* point pattern. Two things then go wrong, neither of them loudly:
+
+- `plot()` stops drawing the points. Given a data frame of marks it draws one panel per mark column and prints the attribute values as text, producing an unreadable wall of overlapping labels instead of a map.
+- `duplicated()` compares marks as well as coordinates. Two centres at the same address with different names are then not counted as duplicates, and the check in the next section reports zero where the true figure is 187.
+
+`st_geometry()` strips the attributes and yields an unmarked pattern, which is what every method in this exercise needs. None of them use the attributes.
+:::
 
 ```{r}
 #| fig-width: 8
@@ -156,7 +167,7 @@ any(duplicated(childcare_ppp))
 sum(multiplicity(childcare_ppp) > 1)
 ```
 
-Both checks come back clean: this GeoJSON release contains no coincident points at all. That is worth stating plainly, because the textbook's copy of the dataset does contain duplicates, and the jittering step below exists to deal with them. Here it changes nothing — it is retained as a safeguard so the document behaves correctly on a release that does have them, and because Hands-on Exercise 2b depends on the pattern being simple.
+The duplication is substantial: 187 points sit on a location already occupied, and 338 points are involved in a coincidence, so the 1925 centres occupy only 1738 distinct locations. Multiple centres registered at the same block or the same mall share one address point.
 
 There are three ways to deal with duplicates. Deleting them is simplest but discards real centres. Attaching weights to the retained points keeps the information but complicates every subsequent analysis. **Jittering** — displacing each duplicate by a tiny random amount so that no two points coincide — keeps all the events and is the approach used here:
 

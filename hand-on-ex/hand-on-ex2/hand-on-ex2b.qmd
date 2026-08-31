@@ -53,10 +53,10 @@ childcare_sf <- st_read("data/geospatial/ChildCareServices.geojson") %>%
   st_transform(crs = 3414)
 ```
 
-Converting to a `ppp` and jittering the duplicates, exactly as before. The summary functions below assume a simple point pattern, so removing duplicates is a precondition rather than a nicety:
+Converting to a `ppp` and jittering the duplicates, exactly as in Hands-on Exercise 2. `st_geometry()` is used so the pattern is unmarked; passing the whole `sf` object would turn the sixteen attribute columns into marks and stop `duplicated()` from seeing coincident locations. The summary functions below assume a simple point pattern, so removing the 187 duplicates is a precondition rather than a nicety:
 
 ```{r}
-childcare_ppp <- as.ppp(childcare_sf)
+childcare_ppp <- as.ppp(st_geometry(childcare_sf))
 
 set.seed(1234)
 childcare_ppp_jit <- rjitter(childcare_ppp,
