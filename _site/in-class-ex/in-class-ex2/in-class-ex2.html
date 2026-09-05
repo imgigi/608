@@ -357,7 +357,7 @@ Tile row 4, col 4
 </div>
 </div>
 </div>
-<p>Note that the 6 × 4 grid does not produce 24 quadrats. The observation window is the Singapore coastline, not a rectangle, so cells falling entirely in the sea are dropped and the ones along the coast are clipped to irregular shapes. Several of the surviving tiles hold no centres at all.</p>
+<p>The 6 × 4 grid does not produce 24 quadrats. The observation window is the Singapore coastline, not a rectangle, so cells falling entirely in the sea are dropped and the ones along the coast are clipped to irregular shapes. Several of the surviving tiles hold no centres at all.</p>
 </section>
 <section id="step-3-intensity-per-quadrat" class="level3">
 <h3 class="anchored" data-anchor-id="step-3-intensity-per-quadrat">Step 3: Intensity per quadrat</h3>
@@ -485,8 +485,8 @@ Quadrats: 21 tiles (irregular windows)</code></pre>
 </div>
 <div class="callout-body-container callout-body">
 <p>The VMR ranges from about 26 to about 228 across these six grids. That is a ninefold swing produced by nothing but the choice of grid, on one unchanged point pattern — so the VMR cannot be read as a property of the pattern, only as a property of the pattern <em>and</em> the grid used to measure it.</p>
-<p>The direction of the answer is stable: every grid rejects CSR, and every VMR is far above 1, so the conclusion that childcare centres are clustered does not depend on the choice. The magnitude is not stable at all, which is why a VMR should never be quoted without the grid that produced it.</p>
-<p>The 4 × 4 grid gives the extreme value because its cells are large enough to straddle both the dense central corridor and the empty catchment, maximising the variance between tiles. Finer grids break those contrasts up into more, smaller cells and the ratio falls.</p>
+<p>The direction of the answer is stable: every grid rejects CSR, and every VMR is far above 1, so the conclusion that childcare centres are clustered does not depend on the choice. The magnitude is not stable at all, so the grid that produced a VMR is part of the result rather than a detail behind it.</p>
+<p>The peak at 4 × 4 comes from the variance column, which reaches 31371 there — higher than at any other grid, including the coarser 2 × 2. The 2 × 2 grid has only four tiles and every one of them mixes dense and empty land, so no tile is empty and the counts stay comparatively close together. The 4 × 4 grid is the first that is fine enough to isolate tiles containing nothing at all, while still leaving tiles holding over 500 centres; that combination maximises the spread. Beyond it, finer grids cut the largest counts down faster than they cut the mean, and the ratio falls away.</p>
 </div>
 </div>
 <p>The lecture’s other two weaknesses are visible in the same table. Quadrat analysis is a measure of <strong>dispersion</strong> rather than of pattern: it counts how uneven the tiles are, but rearranging the centres within a tile changes nothing. And it returns <strong>a single number for the whole region</strong>, so it cannot say that Tampines is clustered while Choa Chu Kang is not — a distinction the Clark-Evans tests in Hands-on Exercise 2 did make.</p>

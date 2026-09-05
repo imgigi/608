@@ -292,9 +292,9 @@ plot(L_tm.csr, . - r ~ r, xlab = "d", ylab = "L(d)-r", xlim = c(0, 500))
 | **K** | each event to all events within *r* | curve **above** the envelope |
 | **L** | as K, variance-stabilised | curve **above** the envelope |
 
-The direction reverses for F because it measures empty space rather than proximity: a clustered pattern leaves larger gaps, so a randomly chosen location is *further* from the nearest event than CSR predicts. Reading F in the same direction as G is the standard mistake with these functions.
+The direction reverses for F because it measures empty space rather than proximity: a clustered pattern leaves larger gaps, so a randomly chosen location is *further* from the nearest event than CSR predicts. Reading F in the same direction as G therefore inverts the conclusion.
 
-Note that all four are **global** statistics: they characterise the pattern as a whole and cannot say *where* any clustering sits. That question requires local methods, and none of the four should be quoted as evidence about a particular part of the map.
+All four are **global** statistics: they characterise the pattern as a whole and cannot say *where* any clustering sits. That question requires local methods, so none of the four supports a claim about a particular part of the map.
 
 ## Reference
 

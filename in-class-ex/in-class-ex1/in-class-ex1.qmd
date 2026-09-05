@@ -136,7 +136,7 @@ So the relationship is positive and clearly significant, but only moderate — d
 
 ## Analytical Map: Percentile Map
 
-The classification methods available through `style` in `tm_scale_intervals()` all place the breaks for you. An analytical map instead computes its own breaks, so that the classes carry a specific statistical meaning.
+The classification methods available through `style` in `tm_scale_intervals()` all place the breaks automatically. An analytical map instead computes its own breaks, so that the classes carry a specific statistical meaning.
 
 A percentile map is a quantile map with six fixed categories — 0–1%, 1–10%, 10–50%, 50–90%, 90–99%, 99–100% — obtained by passing an explicit vector of cumulative probabilities to `quantile()`. Both endpoints must be included.
 
@@ -308,7 +308,7 @@ The two outlier classes are what distinguish a box map from an ordinary quartile
 
 The lower outliers are almost entirely city-centre subzones — Clarke Quay, City Hall, Boat Quay, Tanjong Pagar, Cecil — where the resident population is small and overwhelmingly working-age. The upper outliers are the opposite case, and Loyang West is the extreme: 500 aged residents against only 50 economy active, giving a dependency ratio of 10 against a median of 0.73.
 
-That single value is worth pausing on. It stretches the top class from 1.02 all the way to 10, which is exactly why the box map is the right tool here: an ordinary quartile map would have buried it in a "\> 75%" class alongside subzones with a ratio of 0.9, whereas the box map flags it as statistically exceptional and prompts the follow-up question.
+That single value stretches the top class from 1.02 all the way to 10. An ordinary quartile map would have absorbed it into a "\> 75%" class alongside subzones with a ratio of 0.9, whereas the box map separates it out as statistically exceptional.
 :::
 
 ::: callout-warning

@@ -245,7 +245,7 @@ clarkevans.test(childcareSG_ppp,
 ::: callout-warning
 ## `nsim` is silently ignored here
 
-Read the header of that output: it reports a **Z-test**, not a Monte Carlo test, even though `nsim = 99` was passed. The signature is
+The header of that output reports a **Z-test**, not a Monte Carlo test, even though `nsim = 99` was passed. The signature is
 
 ```
 clarkevans.test(X, ..., correction, clipregion = NULL, alternative = ...,
