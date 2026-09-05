@@ -22,6 +22,8 @@ website:
         menu:
           - text: "Ex 1: Geospatial Data Science with R"
             href: in-class-ex/in-class-ex1/in-class-ex1.qmd
+          - text: "Ex 2: Quadrat Analysis and Monte Carlo Resolution"
+            href: in-class-ex/in-class-ex2/in-class-ex2.qmd
       - href: about.qmd
         text: About
 

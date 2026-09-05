@@ -23,3 +23,4 @@ This site documents my hands-on exercises, in-class exercises, and take-home ass
 | Exercise | Lesson | Topic |
 |----|----|----|
 | [In-class Ex 1](in-class-ex/in-class-ex1/in-class-ex1.qmd) | 1 | Statistical confirmation with **ggstatsplot**, percentile and box maps, the raster data model with **terra** |
+| [In-class Ex 2](in-class-ex/in-class-ex2/in-class-ex2.qmd) | 2 | Quadrat analysis and the variance-mean ratio, and how `nsim` sets Monte Carlo resolution |
